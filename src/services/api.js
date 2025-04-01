@@ -147,6 +147,76 @@ const api = {
       // Fallback to localStorage if MongoDB is unavailable
       return localStorageDB.getNextId();
     }
+  },
+
+  // Rate a problem
+  async rateProblem(id, stars) {
+    try {
+      const response = await axios.post(`${BASE_URL}/rateProblem/${id}`, { stars });
+      return response.data;
+    } catch (error) {
+      console.error(`Error rating problem ${id}:`, error);
+      console.log('Falling back to localStorage');
+      // Fallback to localStorage if MongoDB is unavailable
+      const problems = localStorageDB.getProblems();
+      const index = problems.findIndex(p => p.id === parseInt(id));
+      
+      if (index !== -1) {
+        if (!problems[index].ratings) {
+          problems[index].ratings = [];
+        }
+        
+        // Update or add user rating (in a real app, you'd use actual user IDs)
+        const userIndex = problems[index].ratings.findIndex(r => r.userId === 'currentUser');
+        if (userIndex !== -1) {
+          problems[index].ratings[userIndex].stars = stars;
+        } else {
+          problems[index].ratings.push({ userId: 'currentUser', stars });
+        }
+        
+        // Calculate average
+        const sum = problems[index].ratings.reduce((total, rating) => total + rating.stars, 0);
+        problems[index].averageRating = sum / problems[index].ratings.length;
+        
+        localStorageDB.saveProblems(problems, localStorageDB.getNextId());
+        return problems[index];
+      }
+      
+      throw new Error('Problem not found');
+    }
+  },
+
+  // Vote on a problem's grade
+  async voteGrade(id, grade) {
+    try {
+      const response = await axios.post(`${BASE_URL}/voteGrade/${id}`, { grade });
+      return response.data;
+    } catch (error) {
+      console.error(`Error voting on grade for problem ${id}:`, error);
+      console.log('Falling back to localStorage');
+      // Fallback to localStorage if MongoDB is unavailable
+      const problems = localStorageDB.getProblems();
+      const index = problems.findIndex(p => p.id === parseInt(id));
+      
+      if (index !== -1) {
+        if (!problems[index].gradeVotes) {
+          problems[index].gradeVotes = [];
+        }
+        
+        // Update or add user vote
+        const userIndex = problems[index].gradeVotes.findIndex(v => v.userId === 'currentUser');
+        if (userIndex !== -1) {
+          problems[index].gradeVotes[userIndex].grade = grade;
+        } else {
+          problems[index].gradeVotes.push({ userId: 'currentUser', grade });
+        }
+        
+        localStorageDB.saveProblems(problems, localStorageDB.getNextId());
+        return problems[index];
+      }
+      
+      throw new Error('Problem not found');
+    }
   }
 };
 

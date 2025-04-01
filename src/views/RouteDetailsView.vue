@@ -50,6 +50,37 @@
               </div>
             </div>
           </div>
+          <!-- Add the rating section -->
+          <div class="problem-ratings">
+            <h3>Problem Ratings</h3>
+            
+            <div class="rating-section">
+              <h4>Fun Rating</h4>
+              <StarRating 
+                v-model="userRating" 
+                :disabled="isLoading"
+                :showAverage="true"
+                :averageRating="route.averageRating || 0"
+                :ratingCount="(route.ratings || []).length"
+                @update:modelValue="rateProblem"
+              />
+            </div>
+            
+            <div class="rating-section">
+              <h4>Difficulty Grade</h4>
+              <p class="consensus-grade" v-if="consensusGrade">
+                Average: <strong>{{ consensusGrade }}</strong>
+              </p>
+              <GradeVoting 
+                v-model="userGradeVote"
+                :grades="fontGrades"
+                :disabled="isLoading"
+                :gradeVotes="route.gradeVotes || []"
+                :userVote="userGradeVote"
+                @update:modelValue="voteGrade"
+              />
+            </div>
+          </div>
 
           <div class="problem-actions">
             <button class="delete-btn" @click="confirmDelete">
@@ -71,10 +102,12 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import SprayWall from "../components/SprayWall.vue";
 import { useRouteStore } from "../stores/routeStore";
+import StarRating from '../views/StarRating.vue';
+import GradeVoting from '../views/GradeVoting.vue';
 
 const props = defineProps({
   id: {
@@ -116,6 +149,10 @@ const holdTypeCounts = computed(() => {
   }));
 });
 
+// User's rating state
+const userRating = ref(0);
+const userGradeVote = ref('');
+
 // Format date
 function formatDate(dateString) {
   if (!dateString) return "Unknown";
@@ -133,6 +170,66 @@ function confirmDelete() {
   if (confirm(`Are you sure you want to delete "${route.value.name}"?`)) {
     routeStore.deleteRoute(props.id);
     router.push("/");
+  }
+}
+// Calculate most common grade (consensus)
+const consensusGrade = computed(() => {
+  if (!route.value?.gradeVotes || route.value.gradeVotes.length === 0) {
+    return route.value?.grade || ''; // Return setter's grade if no votes
+  }
+  
+  // Count votes for each grade
+  const gradeCounts = {};
+  route.value.gradeVotes.forEach(vote => {
+    if (!gradeCounts[vote.grade]) {
+      gradeCounts[vote.grade] = 0;
+    }
+    gradeCounts[vote.grade]++;
+  });
+  
+  // Find grade with most votes
+  let maxCount = 0;
+  let consensusGrade = '';
+  
+  for (const [grade, count] of Object.entries(gradeCounts)) {
+    if (count > maxCount) {
+      maxCount = count;
+      consensusGrade = grade;
+    }
+  }
+  
+  return consensusGrade;
+});
+
+// When component mounts, load user's existing ratings
+onMounted(() => {
+  if (route.value) {
+    // Load star rating if user has rated before
+    const userId = 'currentUser'; // Replace with actual user ID in a real app
+    const userRatingObj = route.value.ratings?.find(r => r.userId === userId);
+    if (userRatingObj) {
+      userRating.value = userRatingObj.stars;
+    }
+    
+    // Load grade vote if user has voted before
+    const userGradeObj = route.value.gradeVotes?.find(v => v.userId === userId);
+    if (userGradeObj) {
+      userGradeVote.value = userGradeObj.grade;
+    }
+  }
+});
+
+// Submit a star rating
+async function rateProblem(stars) {
+  if (route.value) {
+    await routeStore.rateProblem(route.value.id, stars);
+  }
+}
+
+// Submit a grade vote
+async function voteGrade(grade) {
+  if (route.value) {
+    await routeStore.voteGrade(route.value.id, grade);
   }
 }
 </script>
@@ -338,5 +435,35 @@ function confirmDelete() {
   background-color: white;
   border-radius: var(--border-radius);
   box-shadow: var(--box-shadow);
+}
+
+.problem-ratings {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  
+  h3 {
+    margin-bottom: 1rem;
+  }
+  
+  .rating-section {
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    padding: 1rem;
+    
+    h4 {
+      margin-top: 0;
+      margin-bottom: 1rem;
+    }
+    
+    .consensus-grade {
+      margin-bottom: 1rem;
+      
+      strong {
+        color: #2c3e50;
+      }
+    }
+  }
 }
 </style>

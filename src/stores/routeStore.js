@@ -25,7 +25,8 @@ export const useRouteStore = defineStore('problems', () => {
     '7a', '7a+', '7b', '7b+', '7c', '7c+',
     '8a', '8a+', '8b', '8b+', '8c', '8c+', '9c'
   ]
-
+  const userRatings = ref({}) // Store user's own ratings by routeId
+  const userGradeVotes = ref({}) // Store user's grade votes by routeId
   // Getters
   const getRouteById = computed(() => {
     return (id) => routes.value.find(route => route.id === parseInt(id))
@@ -119,6 +120,51 @@ export const useRouteStore = defineStore('problems', () => {
     }
   }
 
+  async function rateProblem(id) {
+    isLoading.value = true;
+    error.value = null;
+    
+    try {
+      await api.rateProblem(id);
+      
+      // Update local state
+      const index = routes.value.findIndex(route => route.id === parseInt(id));
+      if (index !== -1) {
+        routes.value.splice(index, 1);
+      }
+      
+      return true;
+    } catch (err) {
+      console.error(`Failed to rate problem ${id}:`, err);
+      error.value = 'Failed to rate problem. Please try again.';
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function voteGrade(id, grade) {
+    isLoading.value = true;
+    error.value = null;
+    
+    try {
+      await api.voteGrade(id, grade);
+      
+      // Update local state
+      const index = routes.value.findIndex(route => route.id === parseInt(id));
+      if (index !== -1) {
+        routes.value.splice(index, 1);
+      }
+      
+      return true;
+    } catch (err) {
+      console.error(`Failed to vote grade ${id}:`, err);
+      error.value = 'Failed to vote grade. Please try again.';
+      return false;
+    } finally {
+      isLoading.value = false;
+    }
+  }
   // Initialize: load problems from localStorage
   function initialize() {
     loadProblems();
@@ -133,10 +179,14 @@ export const useRouteStore = defineStore('problems', () => {
     fontGrades,
     isLoading,
     error,
+    userRatings,
+    userGradeVotes,
     getRouteById,
     addRoute,
     updateRoute,
     deleteRoute,
-    loadProblems
+    loadProblems,
+    rateProblem,
+    voteGrade
   }
 })
