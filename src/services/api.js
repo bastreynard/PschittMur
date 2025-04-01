@@ -4,7 +4,7 @@ import axios from 'axios';
 // For production, use deployed Netlify Functions
 const BASE_URL = import.meta.env.PROD 
   ? '/.netlify/functions'
-  : 'http://localhost:8888/.netlify/functions';
+  : 'http://localhost:9999/.netlify/functions';
 
 // Helper function for localStorage fallback
 const localStorageDB = {
@@ -146,6 +146,78 @@ const api = {
       console.log('Falling back to localStorage');
       // Fallback to localStorage if MongoDB is unavailable
       return localStorageDB.getNextId();
+    }
+  },
+
+  // Rate a problem
+  async rateProblem(id, rating) {
+  const userId = localStorage.getItem('userId');
+    try {
+      const response = await axios.post(`${BASE_URL}/rateProblem/${id}`, { rating, userId });
+      return response.data;
+    } catch (error) {
+      console.error(`Error rating problem ${id}:`, error);
+      console.log('Falling back to localStorage');
+      // Fallback to localStorage if MongoDB is unavailable
+      const problems = localStorageDB.getProblems();
+      const index = problems.findIndex(p => p.id === parseInt(id));
+      
+      if (index !== -1) {
+        if (!problems[index].ratings) {
+          problems[index].ratings = [];
+        }
+        
+        // Update or add user rating (in a real app, you'd use actual user IDs)
+        const userIndex = problems[index].ratings.findIndex(r => r.userIdentifier === userId);
+        if (userIndex !== -1) {
+          problems[index].ratings[userIndex].rating = rating;
+        } else {
+          problems[index].ratings.push({ userIdentifier: userId, rating });
+        }
+        
+        // Calculate average
+        const sum = problems[index].ratings.reduce((total, rating) => total + rating.rating, 0);
+        problems[index].averageRating = sum / problems[index].ratings.length;
+        
+        localStorageDB.saveProblems(problems, localStorageDB.getNextId());
+        return problems[index];
+      }
+      
+      throw new Error('Problem not found');
+    }
+  },
+
+  // Vote on a problem's grade
+  async voteGrade(id, grade) {
+    const userId = localStorage.getItem('userId');
+    try {
+      const response = await axios.post(`${BASE_URL}/voteGrade/${id}`, { grade , userId});
+      return response.data;
+    } catch (error) {
+      console.error(`Error voting on grade for problem ${id}:`, error);
+      console.log('Falling back to localStorage');
+      // Fallback to localStorage if MongoDB is unavailable
+      const problems = localStorageDB.getProblems();
+      const index = problems.findIndex(p => p.id === parseInt(id));
+      
+      if (index !== -1) {
+        if (!problems[index].grades) {
+          problems[index].grades = [];
+        }
+        
+        // Update or add user vote
+        const userIndex = problems[index].grades.findIndex(v => v.userIdentifier === userId);
+        if (userIndex !== -1) {
+          problems[index].grades[userIndex].grade = grade;
+        } else {
+          problems[index].grades.push({ userIdentifier: userId, grade });
+        }
+        
+        localStorageDB.saveProblems(problems, localStorageDB.getNextId());
+        return problems[index];
+      }
+      
+      throw new Error('Problem not found');
     }
   }
 };

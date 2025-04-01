@@ -55,6 +55,28 @@ const login = () => {
     error.value = "Incorrect password. Please try again.";
   }
 };
+
+function generateUserToken() {
+  const browserInfo = [
+    navigator.userAgent,
+    navigator.language,
+    screen.colorDepth,
+    screen.width + 'x' + screen.height
+  ].join('|');
+  
+  // Create a hash from the browser info
+  let hash = 0;
+  for (let i = 0; i < browserInfo.length; i++) {
+    hash = ((hash << 5) - hash) + browserInfo.charCodeAt(i);
+    hash |= 0; // Convert to 32bit integer
+  }
+  
+  return 'user_' + Math.abs(hash).toString(16);
+}
+
+// Save this in localStorage
+localStorage.setItem('userId', generateUserToken());
+
 </script>
 
 <style lang="scss" scoped>

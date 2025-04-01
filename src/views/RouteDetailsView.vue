@@ -50,6 +50,29 @@
               </div>
             </div>
           </div>
+          <!-- Add the rating section -->
+          <div class="problem-ratings">
+            <div class="rating-section">
+              <StarRating
+                v-model="userRating"
+                :disabled="isLoading"
+                :showAverage="true"
+                :averageRating="route.averageRating || 0"
+                :ratingCount="(route.ratings || []).length"
+                @update:modelValue="rateProblem"
+              />
+            </div>
+
+            <div class="rating-section">
+              <GradeVoting
+                v-model="selectedGrade"
+                :disabled="isLoading"
+                :gradesVotes="gradesVotes"
+                :userVote="userVote"
+                @update:modelValue="handleGradeVote"
+              />
+            </div>
+          </div>
 
           <div class="problem-actions">
             <button class="delete-btn" @click="confirmDelete">
@@ -71,10 +94,12 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import SprayWall from "../components/SprayWall.vue";
 import { useRouteStore } from "../stores/routeStore";
+import StarRating from "../views/StarRating.vue";
+import GradeVoting from "../views/GradeVoting.vue";
 
 const props = defineProps({
   id: {
@@ -116,6 +141,14 @@ const holdTypeCounts = computed(() => {
   }));
 });
 
+// User's rating state
+const userRating = ref(0);
+const selectedGrade = ref("");
+const userVote = ref("");
+const gradesVotes = computed(() => {
+  return route.value?.grades || [];
+});
+
 // Format date
 function formatDate(dateString) {
   if (!dateString) return "Unknown";
@@ -133,6 +166,112 @@ function confirmDelete() {
   if (confirm(`Are you sure you want to delete "${route.value.name}"?`)) {
     routeStore.deleteRoute(props.id);
     router.push("/");
+  }
+}
+// Calculate most common grade (consensus)
+const consensusGrade = computed(() => {
+  if (!route.value?.grades || route.value.grades.length === 0) {
+    return route.value?.grade || ""; // Return setter's grade if no votes
+  }
+
+  // Count votes for each grade
+  const gradeCounts = {};
+  route.value.grades.forEach((vote) => {
+    if (!gradeCounts[vote.grade]) {
+      gradeCounts[vote.grade] = 0;
+    }
+    gradeCounts[vote.grade]++;
+  });
+
+  // Find grade with most votes
+  let maxCount = 0;
+  let consensusGrade = "";
+
+  for (const [grade, count] of Object.entries(gradeCounts)) {
+    if (count > maxCount) {
+      maxCount = count;
+      consensusGrade = grade;
+    }
+  }
+
+  return consensusGrade;
+});
+
+// When component mounts, load user's existing ratings
+onMounted(() => {
+  if (route.value) {
+    // Load star rating if user has rated before
+    const userId = localStorage.getItem("userId");
+    const userIdentifier = userId || "anonymous_user";
+    const userRatingObj = route.value.ratings?.find(
+      (r) => r.userIdentifier === userIdentifier
+    );
+    if (userRatingObj) {
+      userRating.value = userRatingObj.rating;
+    }
+
+    // Load grade vote if user has voted before
+    const userGradeObj = route.value.grades?.find(
+      (v) => v.userIdentifier === userIdentifier
+    );
+    if (userGradeObj) {
+      userVote.value = userGradeObj.grade;
+    }
+  }
+});
+
+// Submit a star rating
+async function rateProblem(rating) {
+  if (route.value) {
+    await routeStore.rateProblem(route.value.id, rating);
+  }
+}
+
+// Submit a grade vote
+async function handleGradeVote(newGrade) {
+  if (route.value) {
+    // Call the store method to persist the vote
+    await routeStore.voteGrade(route.value.id, newGrade);
+
+    // Update the local userVote state immediately for UI feedback
+    userVote.value = newGrade;
+
+    // Force an immediate update to the local route data for the graph
+    // This is a temporary solution until the store data is refreshed
+    const userId = localStorage.getItem("userId") || "anonymous_user";
+
+    // Create a copy of the current grades array
+    const updatedGrades = [...(route.value.grades || [])];
+
+    // Find if the user already has a vote
+    const existingVoteIndex = updatedGrades.findIndex(
+      (v) => v.userIdentifier === userId
+    );
+
+    if (newGrade === "") {
+      // Remove the vote if user cleared their selection
+      if (existingVoteIndex !== -1) {
+        updatedGrades.splice(existingVoteIndex, 1);
+      }
+    } else {
+      // Update existing vote or add new vote
+      const voteObj = {
+        userIdentifier: userId,
+        grade: newGrade,
+        timestamp: new Date().toISOString(),
+      };
+
+      if (existingVoteIndex !== -1) {
+        // Update existing vote
+        updatedGrades[existingVoteIndex] = voteObj;
+      } else {
+        // Add new vote
+        updatedGrades.push(voteObj);
+      }
+    }
+
+    // Force update the route's grades in the store
+    routeStore.updateRouteGrades(route.value.id, updatedGrades);
   }
 }
 </script>
@@ -338,5 +477,27 @@ function confirmDelete() {
   background-color: white;
   border-radius: var(--border-radius);
   box-shadow: var(--box-shadow);
+}
+
+.problem-ratings {
+  margin-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+
+  h3 {
+    margin-bottom: 1rem;
+  }
+
+  .rating-section {
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    padding: 1rem;
+
+    h4 {
+      margin-top: 0;
+      margin-bottom: 1rem;
+    }
+  }
 }
 </style>
