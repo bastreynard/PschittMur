@@ -1,10 +1,10 @@
 import axios from 'axios';
-
+const DEV_PORT = import.meta.env.VITE_DEV_PORT || 8888; // Default to 8888 if not specified
 // For local development, use the local Netlify Functions
 // For production, use deployed Netlify Functions
 const BASE_URL = import.meta.env.PROD 
   ? '/.netlify/functions'
-  : 'http://localhost:9999/.netlify/functions';
+  : `http://localhost:${DEV_PORT}/.netlify/functions`;
 
 // Helper function for localStorage fallback
 const localStorageDB = {
