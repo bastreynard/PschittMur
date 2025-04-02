@@ -168,34 +168,6 @@ function confirmDelete() {
     router.push("/");
   }
 }
-// Calculate most common grade (consensus)
-const consensusGrade = computed(() => {
-  if (!route.value?.grades || route.value.grades.length === 0) {
-    return route.value?.grade || ""; // Return setter's grade if no votes
-  }
-
-  // Count votes for each grade
-  const gradeCounts = {};
-  route.value.grades.forEach((vote) => {
-    if (!gradeCounts[vote.grade]) {
-      gradeCounts[vote.grade] = 0;
-    }
-    gradeCounts[vote.grade]++;
-  });
-
-  // Find grade with most votes
-  let maxCount = 0;
-  let consensusGrade = "";
-
-  for (const [grade, count] of Object.entries(gradeCounts)) {
-    if (count > maxCount) {
-      maxCount = count;
-      consensusGrade = grade;
-    }
-  }
-
-  return consensusGrade;
-});
 
 // When component mounts, load user's existing ratings
 onMounted(() => {
